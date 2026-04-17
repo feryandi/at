@@ -286,7 +286,7 @@ Replace `/etc/caddy/Caddyfile` with the following, substituting all `<placeholde
             }
 
             ui {
-                custom_css_path /var/lib/at/data/theme/auth.css
+                custom css path /var/lib/at/data/theme/auth.css
             }
         }
 
@@ -334,7 +334,7 @@ The Caddyfile snippet in step 4 already includes the `ui` block pointing to this
 
 ```caddyfile
 ui {
-    custom_css_path /your/data/dir/theme/auth.css
+    custom css path /your/data/dir/theme/auth.css
 }
 ```
 
