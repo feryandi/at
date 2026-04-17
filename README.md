@@ -535,6 +535,7 @@ internal/
   deploy/        Build and deploy pipeline
   proxy/         Caddy admin API client
   store/         SQLite models and queries
+  theme/         Embedded caddy-security portal CSS, written to disk on startup
 docker-compose.yml  Caddy setup
 Makefile
 ```
