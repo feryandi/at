@@ -284,6 +284,10 @@ Replace `/etc/caddy/Caddyfile` with the following, substituting all `<placeholde
                 match email you@gmail.com
                 action add role authp/user
             }
+
+            ui {
+                custom_css_path /var/lib/at/data/theme/auth.css
+            }
         }
 
         authorization policy mypolicy {
@@ -321,6 +325,20 @@ http:// {
 | `cookie domain` | Your dashboard domain (no `https://` prefix) |
 | `match email` | Gmail address(es) allowed to log in — add one `match email` line per user |
 | `set auth url` | Full URL to the portal, must match `cookie domain` |
+
+### 5. Apply the at login theme
+
+`at` writes a custom CSS file to `{AT_DATA_DIR}/theme/auth.css` on every startup. It overrides caddy-security's portal styles to match the `at` dashboard: dark background, monospace branding, blue accent buttons.
+
+The Caddyfile snippet in step 4 already includes the `ui` block pointing to this file. If you use a different `AT_DATA_DIR`, update the path accordingly:
+
+```caddyfile
+ui {
+    custom_css_path /your/data/dir/theme/auth.css
+}
+```
+
+The default path (when `AT_DATA_DIR=/var/lib/at/data`) is `/var/lib/at/data/theme/auth.css`. The file is regenerated on each `at` restart, so theme updates ship automatically.
 
 ### 6. Protect app subdomains too
 
@@ -360,14 +378,14 @@ authorization policy mypolicy {
 
 When configured, the dashboard header shows an avatar, the user's name, and a **Sign out** link. When `AT_OAUTH_PORTAL_URL` is unset, the header is unchanged — the feature is fully opt-in.
 
-### 5. Validate and reload
+### 8. Validate and reload
 
 ```bash
 sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 ```
 
-Visiting `https://at.example.com` will now redirect to Google login. Only the email address(es) listed in `match email` blocks can authenticate.
+Visiting `https://at.example.com` will now redirect to the themed Google login page. Only the email address(es) listed in `match email` blocks can authenticate.
 
 > **Keep secrets out of git.** The `client_secret` and `crypto key sign-verify` values must never be committed. If you version your Caddyfile, use environment variable substitution (`{$MY_VAR}`) or a secrets manager to inject them at runtime.
 

@@ -17,6 +17,7 @@ import (
 	"github.com/ferya/at/internal/deploy"
 	"github.com/ferya/at/internal/proxy"
 	"github.com/ferya/at/internal/store"
+	"github.com/ferya/at/internal/theme"
 )
 
 func getEnv(key, defaultVal string) string {
@@ -54,6 +55,13 @@ func main() {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			log.Fatalf("create dir %s: %v", dir, err)
 		}
+	}
+
+	// Write bundled auth portal theme to disk for caddy-security to reference
+	if cssPath, err := theme.WriteFiles(dataDir); err != nil {
+		log.Printf("theme: failed to write files: %v", err)
+	} else {
+		log.Printf("theme: auth portal CSS → %s", cssPath)
 	}
 
 	// Init SQLite store

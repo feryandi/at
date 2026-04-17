@@ -1,0 +1,308 @@
+/* ================================================================
+   at — caddy-security portal theme
+   Matches the at dashboard aesthetic (dark, monospace, blue accent).
+
+   Reference this file in your Caddyfile authentication portal block:
+     ui {
+       custom_css_path /path/to/data/theme/auth.css
+     }
+   at writes this file to {AT_DATA_DIR}/theme/auth.css on startup.
+   ================================================================ */
+
+:root {
+  --bg:       #0d0d0d;
+  --bg-card:  #161616;
+  --bg-hover: #1c1c1c;
+  --border:   #2a2a2a;
+  --text:     #e8e8e8;
+  --muted:    #888;
+  --dim:      #555;
+  --accent:   #4f8ef7;
+  --accent-h: #6ba3ff;
+  --danger:   #e05b5b;
+  --green:    #4caf7d;
+  --yellow:   #f0c060;
+  --r:        6px;
+  --mono:     'JetBrains Mono', 'Fira Code', monospace;
+  --sans:     -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ── Base ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: var(--sans) !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  min-height: 100vh;
+}
+
+a { color: var(--accent) !important; text-decoration: none !important; }
+a:hover { color: var(--accent-h) !important; text-decoration: underline !important; }
+
+/* ── Header / navbar ── */
+header, .app-header,
+nav.navbar, .navbar {
+  background: var(--bg) !important;
+  border-bottom: 1px solid var(--border) !important;
+  box-shadow: none !important;
+  padding: 13px 24px !important;
+}
+
+.navbar-brand, .app-header-brand,
+.navbar-brand *, .app-header-brand * {
+  font-family: var(--mono) !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: var(--text) !important;
+  text-decoration: none !important;
+}
+.navbar-brand:hover, .app-header-brand:hover { color: var(--accent) !important; }
+
+.navbar-toggler { border-color: var(--border) !important; }
+.navbar-toggler-icon { filter: invert(1) brightness(.6); }
+
+/* ── Page wrapper / container ── */
+.app-page { background: var(--bg) !important; }
+
+.container, .container-fluid, .container-xl,
+.container-lg, .container-md, .container-sm {
+  background: transparent !important;
+}
+
+/* ── Login card ── */
+.card, .app-card, .app-card-md, .app-card-sm {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r) !important;
+  box-shadow: none !important;
+}
+
+.card-header, .card-footer {
+  background: transparent !important;
+  border-color: var(--border) !important;
+  padding: 11px 16px !important;
+}
+
+.card-body { padding: 24px !important; }
+
+.card-title, h1, h2, h3, h4, h5, h6 {
+  color: var(--text) !important;
+  font-weight: 700 !important;
+}
+.card-title { font-size: 16px !important; margin-bottom: 20px !important; }
+
+/* ── Form elements ── */
+.form-group, .mb-3, .mb-4 { margin-bottom: 16px !important; }
+
+label, .form-label, .col-form-label {
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .05em !important;
+  margin-bottom: 6px !important;
+  display: block;
+}
+
+.form-control, .form-select,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+textarea, select {
+  background: #0a0a0a !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r) !important;
+  color: var(--text) !important;
+  font-size: 13px !important;
+  font-family: var(--sans) !important;
+  padding: 8px 12px !important;
+  transition: border-color .15s !important;
+  width: 100%;
+}
+
+.form-control:focus, .form-select:focus, input:focus, textarea:focus, select:focus {
+  outline: none !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(79,142,247,.15) !important;
+  background: #0a0a0a !important;
+}
+
+.form-control::placeholder,
+input::placeholder { color: var(--dim) !important; }
+
+.form-text, .form-hint { color: var(--dim) !important; font-size: 11px !important; }
+
+/* ── Buttons — base ── */
+.btn, button[type="submit"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  padding: 7px 16px !important;
+  border-radius: var(--r) !important;
+  font-size: 13px !important;
+  font-family: var(--sans) !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+  transition: background .15s, border-color .15s !important;
+  white-space: nowrap;
+}
+
+/* Primary — sign in / submit */
+.btn-primary, button[type="submit"] {
+  background: var(--accent) !important;
+  border: 1px solid var(--accent) !important;
+  color: #fff !important;
+}
+.btn-primary:hover, button[type="submit"]:hover {
+  background: var(--accent-h) !important;
+  border-color: var(--accent-h) !important;
+  color: #fff !important;
+}
+.btn-primary:disabled, button[type="submit"]:disabled {
+  opacity: .5 !important;
+  cursor: not-allowed !important;
+}
+
+/* Secondary / outline */
+.btn-secondary, .btn-outline-secondary,
+.btn-light, .btn-outline-light,
+.btn-dark, .btn-outline-dark {
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+}
+.btn-secondary:hover, .btn-outline-secondary:hover,
+.btn-light:hover, .btn-outline-light:hover,
+.btn-dark:hover, .btn-outline-dark:hover {
+  background: var(--bg-hover) !important;
+  border-color: #444 !important;
+  color: var(--text) !important;
+  text-decoration: none !important;
+}
+
+/* Full-width button helper */
+.btn-block, .w-100.btn { width: 100% !important; }
+
+/* ── OAuth provider buttons ── */
+/* caddy-security renders these as <a> tags linking to /auth/oauth2/<provider> */
+a[href*="/oauth2/"],
+a[href*="google"],
+.btn-google, .btn-github, .btn-facebook,
+[class*="btn-social"], [class*="provider-btn"] {
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  padding: 9px 16px !important;
+  border-radius: var(--r) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  width: 100%;
+  transition: background .15s, border-color .15s !important;
+}
+a[href*="/oauth2/"]:hover,
+a[href*="google"]:hover,
+.btn-google:hover, .btn-github:hover {
+  background: var(--bg-hover) !important;
+  border-color: #444 !important;
+  color: var(--text) !important;
+  text-decoration: none !important;
+}
+
+/* Provider icon sizing */
+a[href*="/oauth2/"] img,
+a[href*="google"] img,
+.btn-google img, .btn-github img { width: 18px; height: 18px; }
+
+/* ── Dividers ── */
+hr, .divider {
+  border: none !important;
+  border-top: 1px solid var(--border) !important;
+  margin: 20px 0 !important;
+}
+.divider-text, .or-divider {
+  color: var(--dim) !important;
+  font-size: 11px !important;
+  text-align: center;
+  position: relative;
+}
+
+/* ── Alerts ── */
+.alert {
+  border-radius: var(--r) !important;
+  font-size: 13px !important;
+  padding: 10px 14px !important;
+  border-width: 1px !important;
+}
+.alert-danger, .alert-error {
+  background: rgba(224,91,91,.08) !important;
+  border-color: rgba(224,91,91,.25) !important;
+  color: var(--danger) !important;
+}
+.alert-success {
+  background: rgba(76,175,125,.08) !important;
+  border-color: rgba(76,175,125,.25) !important;
+  color: var(--green) !important;
+}
+.alert-info, .alert-primary {
+  background: rgba(79,142,247,.06) !important;
+  border-color: rgba(79,142,247,.2) !important;
+  color: var(--accent) !important;
+}
+.alert-warning {
+  background: rgba(240,192,96,.07) !important;
+  border-color: rgba(240,192,96,.2) !important;
+  color: var(--yellow) !important;
+}
+
+/* ── Table (MFA / token list pages) ── */
+table { width: 100%; border-collapse: collapse; }
+th, td {
+  padding: 10px 12px !important;
+  border-bottom: 1px solid var(--border) !important;
+  font-size: 13px !important;
+  color: var(--text) !important;
+  text-align: left;
+}
+th {
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .06em !important;
+}
+tr:last-child td { border-bottom: none !important; }
+tr:hover td { background: var(--bg-hover) !important; }
+
+/* ── Misc Bootstrap overrides ── */
+.bg-white, .bg-light  { background: var(--bg-card) !important; }
+.bg-dark, .bg-black   { background: var(--bg) !important; }
+.text-dark, .text-black, .text-body { color: var(--text) !important; }
+.text-muted, .text-secondary { color: var(--muted) !important; }
+.border, .border-top, .border-bottom,
+.border-start, .border-end { border-color: var(--border) !important; }
+.shadow, .shadow-sm, .shadow-lg { box-shadow: none !important; }
+.rounded, .rounded-2, .rounded-3 { border-radius: var(--r) !important; }
+
+/* ── Footer ── */
+footer, .app-footer {
+  background: var(--bg) !important;
+  border-top: 1px solid var(--border) !important;
+  color: var(--dim) !important;
+  font-size: 11px !important;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--dim); }
