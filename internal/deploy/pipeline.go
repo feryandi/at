@@ -436,6 +436,25 @@ func (p *Pipeline) SyncCaddyPublic(ctx context.Context) error {
 	return p.syncCaddy(ctx)
 }
 
+// StartPeriodicSync re-syncs Caddy routes every interval until ctx is cancelled.
+// This ensures app routes survive Caddy restarts.
+func (p *Pipeline) StartPeriodicSync(ctx context.Context, interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := p.syncCaddy(ctx); err != nil {
+					log.Printf("[sync] periodic caddy sync: %v", err)
+				}
+			}
+		}
+	}()
+}
+
 // shortID returns the first n characters of id, or the whole string if shorter.
 func shortID(id string) string {
 	if len(id) <= 12 {
