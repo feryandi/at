@@ -43,6 +43,22 @@
     }
     .brand:hover { color: var(--accent); }
 
+    /* Header right cluster */
+    .header-right { display: flex; align-items: center; gap: 14px; }
+
+    /* User pill */
+    .user-pill { display: none; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+    .user-pill.visible { display: flex; }
+    .user-avatar {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--accent); color: #fff;
+      font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .user-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-signout { font-size: 11px; color: var(--dim); border-left: 1px solid var(--border); padding-left: 10px; }
+    .user-signout:hover { color: var(--danger); text-decoration: none; }
+
     /* Caddy status */
     .caddy-pill { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--dim); }
     .cdot { width: 7px; height: 7px; border-radius: 50%; background: var(--gray); flex-shrink: 0; }
@@ -288,9 +304,16 @@
     </svg>
     at
   </div>
-  <div class="caddy-pill">
-    <span class="cdot" id="caddy-dot"></span>
-    <span id="caddy-label">Caddy</span>
+  <div class="header-right">
+    <div class="user-pill" id="user-pill">
+      <div class="user-avatar" id="user-avatar"></div>
+      <span class="user-name" id="user-name"></span>
+      <a class="user-signout" id="user-signout" href="">Sign out</a>
+    </div>
+    <div class="caddy-pill">
+      <span class="cdot" id="caddy-dot"></span>
+      <span id="caddy-label">Caddy</span>
+    </div>
   </div>
 </header>
 
@@ -785,6 +808,20 @@ function wireDomainPreview() {
 // ─────────────────────────────────────────────
 async function init() {
   try { _cfg = await api.get('/api/config'); } catch (_) {}
+
+  if (_cfg.oauth_portal_url) {
+    try {
+      const me = await api.get('/api/whoami');
+      if (me.email) {
+        const initial = (me.name || me.email)[0].toUpperCase();
+        document.getElementById('user-avatar').textContent = initial;
+        document.getElementById('user-name').textContent = me.name || me.email;
+        document.getElementById('user-signout').href = _cfg.oauth_portal_url + '/logout';
+        document.getElementById('user-pill').classList.add('visible');
+      }
+    } catch (_) {}
+  }
+
   router();
   checkCaddy();
   setInterval(checkCaddy, 15000);

@@ -46,6 +46,8 @@ func main() {
 	portRangeStart := getEnvInt("AT_PORT_RANGE_START", 10000)
 	baseDomain     := getEnv("AT_BASE_DOMAIN", "")
 	upstreamHost   := getEnv("AT_UPSTREAM_HOST", "localhost")
+	oauthPolicy    := getEnv("AT_OAUTH_POLICY", "")
+	oauthPortalURL := getEnv("AT_OAUTH_PORTAL_URL", "")
 
 	// Ensure data and projects directories exist
 	for _, dir := range []string{dataDir, projectsDir} {
@@ -72,7 +74,7 @@ func main() {
 	log.Printf("docker: client initialized")
 
 	// Init Caddy proxy
-	caddy := proxy.NewCaddy(caddyAdmin)
+	caddy := proxy.NewCaddy(caddyAdmin, oauthPolicy)
 	log.Printf("caddy: admin URL = %s", caddyAdmin)
 
 	// Init pipeline
@@ -90,9 +92,15 @@ func main() {
 		log.Printf("reconcile warning: %v", err)
 	}
 
+	// Background context for long-running tasks (cancelled on shutdown)
+	bgCtx, bgCancel := context.WithCancel(context.Background())
+
+	// Re-sync Caddy routes periodically so they survive Caddy restarts
+	pipeline.StartPeriodicSync(bgCtx, 30*time.Second)
+
 	// Set up HTTP server
 	mux := http.NewServeMux()
-	handler := api.NewHandler(db, pipeline, caddy, baseDomain)
+	handler := api.NewHandler(db, pipeline, caddy, baseDomain, oauthPortalURL)
 	handler.RegisterRoutes(mux)
 
 	addr := fmt.Sprintf(":%s", port)
@@ -110,6 +118,8 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+
+	bgCancel()
 
 	log.Println("server: shutting down...")
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

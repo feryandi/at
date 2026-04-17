@@ -12,14 +12,15 @@ import (
 )
 
 type Handler struct {
-	db         *store.DB
-	pipeline   *deploy.Pipeline
-	caddy      *proxy.Caddy
-	baseDomain string
+	db             *store.DB
+	pipeline       *deploy.Pipeline
+	caddy          *proxy.Caddy
+	baseDomain     string
+	oauthPortalURL string
 }
 
-func NewHandler(db *store.DB, pipeline *deploy.Pipeline, caddy *proxy.Caddy, baseDomain string) *Handler {
-	return &Handler{db: db, pipeline: pipeline, caddy: caddy, baseDomain: baseDomain}
+func NewHandler(db *store.DB, pipeline *deploy.Pipeline, caddy *proxy.Caddy, baseDomain, oauthPortalURL string) *Handler {
+	return &Handler{db: db, pipeline: pipeline, caddy: caddy, baseDomain: baseDomain, oauthPortalURL: oauthPortalURL}
 }
 
 type AppWithStatus struct {
@@ -30,6 +31,7 @@ type AppWithStatus struct {
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /", h.handleDashboard)
 	mux.HandleFunc("GET /api/config", h.handleConfig)
+	mux.HandleFunc("GET /api/whoami", h.handleWhoami)
 	mux.HandleFunc("GET /api/status", h.handleStatus)
 	mux.HandleFunc("GET /api/apps", h.handleListApps)
 	mux.HandleFunc("POST /api/apps/scan", h.handleScanProjects)
@@ -60,7 +62,15 @@ func (h *Handler) handleDashboard(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleConfig(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]any{
-		"base_domain": h.baseDomain,
+		"base_domain":      h.baseDomain,
+		"oauth_portal_url": h.oauthPortalURL,
+	})
+}
+
+func (h *Handler) handleWhoami(w http.ResponseWriter, r *http.Request) {
+	jsonOK(w, map[string]string{
+		"email": r.Header.Get("X-Token-User-Email"),
+		"name":  r.Header.Get("X-Token-User-Name"),
 	})
 }
 

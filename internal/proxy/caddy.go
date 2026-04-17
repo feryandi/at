@@ -26,14 +26,17 @@ type Route struct {
 
 // Caddy manages Caddy reverse proxy configuration via admin API.
 type Caddy struct {
-	adminURL string
-	client   *http.Client
+	adminURL    string
+	oauthPolicy string // caddy-security authorization policy name; empty = no auth on app routes
+	client      *http.Client
 }
 
 // NewCaddy creates a new Caddy proxy manager.
-func NewCaddy(adminURL string) *Caddy {
+// oauthPolicy is the caddy-security authorization policy name to enforce on all app routes (empty = disabled).
+func NewCaddy(adminURL, oauthPolicy string) *Caddy {
 	return &Caddy{
-		adminURL: adminURL,
+		adminURL:    adminURL,
+		oauthPolicy: oauthPolicy,
 		// DisableKeepAlives ensures a fresh TCP connection per request,
 		// avoiding EOF errors from stale keep-alive connections after Caddy restarts.
 		client: &http.Client{
@@ -84,7 +87,7 @@ func (c *Caddy) syncOnce(ctx context.Context, routes []Route) error {
 	if err != nil {
 		return fmt.Errorf("fetch caddy config: %w", err)
 	}
-	mergeAtRoutes(cfg, routes)
+	mergeAtRoutes(cfg, routes, c.oauthPolicy)
 	return c.postLoad(ctx, cfg)
 }
 
@@ -133,7 +136,7 @@ func (c *Caddy) postLoad(ctx context.Context, cfg map[string]any) error {
 // mergeAtRoutes removes all previously at-managed routes (identified by "@id" prefix "at-")
 // from every server in cfg, then inserts the new routes into the :443 server.
 // If no :443 server exists, a dedicated "at" server is created.
-func mergeAtRoutes(cfg map[string]any, routes []Route) {
+func mergeAtRoutes(cfg map[string]any, routes []Route, oauthPolicy string) {
 	servers := ensureServersMap(cfg)
 
 	// Collect at-managed local domains currently in skip lists so we can clean them up.
@@ -178,7 +181,7 @@ func mergeAtRoutes(cfg map[string]any, routes []Route) {
 
 	// Prepend at-managed routes so they take precedence over Caddyfile catch-alls.
 	existing, _ := s["routes"].([]any)
-	newRoutes := buildAtRoutes(routes)
+	newRoutes := buildAtRoutesWithPolicy(routes, oauthPolicy)
 	merged := make([]any, 0, len(newRoutes)+len(existing))
 	merged = append(merged, newRoutes...)
 	merged = append(merged, existing...)
@@ -343,19 +346,34 @@ func removeStrings(list, remove []string) []string {
 }
 
 func buildAtRoutes(routes []Route) []any {
+	return buildAtRoutesWithPolicy(routes, "")
+}
+
+func buildAtRoutesWithPolicy(routes []Route, oauthPolicy string) []any {
 	result := make([]any, 0, len(routes))
 	for _, r := range routes {
+		handle := []any{}
+		if oauthPolicy != "" {
+			handle = append(handle, map[string]any{
+				"handler": "authentication",
+				"providers": map[string]any{
+					"authorizer": map[string]any{
+						"gatekeeper_name": oauthPolicy,
+						"route_matcher":   "*",
+					},
+				},
+			})
+		}
+		handle = append(handle, map[string]any{
+			"handler":   "reverse_proxy",
+			"upstreams": []any{map[string]any{"dial": r.Upstream}},
+		})
 		result = append(result, map[string]any{
 			"@id": atRoutePrefix + r.Domain,
 			"match": []any{
 				map[string]any{"host": []any{r.Domain}},
 			},
-			"handle": []any{
-				map[string]any{
-					"handler":   "reverse_proxy",
-					"upstreams": []any{map[string]any{"dial": r.Upstream}},
-				},
-			},
+			"handle": handle,
 		})
 	}
 	return result

@@ -74,6 +74,8 @@ Once it turns **running**, the app is reachable at its assigned domain through C
 | `AT_PORT_RANGE_START` | `10000` | First host port allocated to apps (increments per app) |
 | `AT_BASE_DOMAIN` | _(unset)_ | Base domain for automatic subdomain routing (see below) |
 | `AT_UPSTREAM_HOST` | `localhost` | Host Caddy uses to reach app containers. Set to `host.docker.internal` when Caddy runs in Docker (e.g. Docker Desktop on Windows/Mac). |
+| `AT_OAUTH_POLICY` | _(unset)_ | caddy-security authorization policy name. When set, every app route injected into Caddy requires authentication via that policy. |
+| `AT_OAUTH_PORTAL_URL` | _(unset)_ | Base URL of the caddy-security auth portal (e.g. `https://at.example.com/auth`). When set, the dashboard shows the logged-in user and a sign-out link. |
 
 ## Per-project config
 
@@ -188,6 +190,189 @@ Then redeploy to push the corrected route to Caddy.
 
 ---
 
+## Securing the dashboard with Google SSO
+
+The `at` dashboard has no authentication built in. If it is exposed on a public domain, anyone can access it. The recommended approach is to protect it at the Caddy level using the [`caddy-security`](https://github.com/greenpau/caddy-security) plugin, which adds a Google OAuth2 login gate with no extra services required.
+
+### 1. Build Caddy with the caddy-security plugin
+
+The stock Caddy binary does not include third-party plugins. Use [`xcaddy`](https://github.com/caddyserver/xcaddy) to build a custom binary.
+
+**Install xcaddy:**
+
+```bash
+GOPATH=$HOME/go go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
+```
+
+**Build Caddy with caddy-security** (match the version already installed — check with `caddy version`):
+
+```bash
+cd /tmp
+GOPATH=$HOME/go $HOME/go/bin/xcaddy build v2.11.2 \
+  --with github.com/greenpau/caddy-security \
+  --output /tmp/caddy-new
+```
+
+**Verify the plugin is included:**
+
+```bash
+/tmp/caddy-new list-modules | grep security
+# should print: security
+```
+
+**Replace the system binary** (this causes ~1 second of downtime):
+
+```bash
+sudo cp /usr/bin/caddy /usr/bin/caddy.bak   # keep a backup
+sudo systemctl stop caddy
+sudo cp /tmp/caddy-new /usr/bin/caddy
+sudo systemctl start caddy
+```
+
+### 2. Create a Google OAuth app
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) and create or select a project.
+2. Navigate to **APIs & Services → OAuth consent screen**
+   - User type: **External**
+   - Fill in app name and your email
+   - Add scopes: `openid`, `email`, `profile`
+   - Add your Gmail address as a **test user**
+3. Navigate to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
+   - Application type: **Web application**
+   - Authorized redirect URI:
+     ```
+     https://at.example.com/auth/oauth2/google/authorization-code-callback
+     ```
+     (replace `at.example.com` with your actual dashboard domain)
+4. Copy the **Client ID** and **Client Secret**.
+
+### 3. Generate a JWT signing key
+
+This key signs the session tokens issued after login. Generate a random one:
+
+```bash
+openssl rand -hex 32
+```
+
+Keep this value — losing it invalidates all active sessions.
+
+### 4. Update your Caddyfile
+
+Replace `/etc/caddy/Caddyfile` with the following, substituting all `<placeholder>` values:
+
+```caddyfile
+{
+    admin 0.0.0.0:2019
+
+    security {
+        oauth identity provider google {
+            realm google
+            driver google
+            client_id <your-google-client-id>
+            client_secret <your-google-client-secret>
+            scopes openid email profile
+        }
+
+        authentication portal myportal {
+            crypto default token lifetime 86400
+            crypto key sign-verify <your-random-hex-key>
+            enable identity provider google
+            cookie domain at.example.com
+
+            transform user {
+                match realm google
+                match email you@gmail.com
+                action add role authp/user
+            }
+        }
+
+        authorization policy mypolicy {
+            set auth url https://at.example.com/auth/
+            allow roles authp/user
+        }
+    }
+}
+
+at.example.com {
+    route /auth* {
+        authenticate with myportal
+    }
+
+    route {
+        authorize with mypolicy
+        reverse_proxy localhost:8080
+    }
+}
+
+# Redirect all other HTTP traffic to HTTPS so app subdomains (*.at.example.com)
+# get upgraded — Caddy's app routes only live on :443.
+http:// {
+    redir https://{host}{uri} permanent
+}
+```
+
+**Key fields:**
+
+| Field | Description |
+|---|---|
+| `client_id` | From Google Cloud Console (Credentials page) |
+| `client_secret` | From Google Cloud Console — treat as a password, never commit to git |
+| `crypto key sign-verify` | Random hex string from `openssl rand -hex 32` |
+| `cookie domain` | Your dashboard domain (no `https://` prefix) |
+| `match email` | Gmail address(es) allowed to log in — add one `match email` line per user |
+| `set auth url` | Full URL to the portal, must match `cookie domain` |
+
+### 6. Protect app subdomains too
+
+By default the SSO gate only covers the dashboard domain. To require login on all deployed app subdomains as well, set `AT_OAUTH_POLICY` to the name of the authorization policy you defined in the Caddyfile (`mypolicy` in the example above). `at` will then prepend the authentication handler to every app route it injects into Caddy.
+
+Add it to your systemd service file:
+
+```ini
+Environment=AT_OAUTH_POLICY=mypolicy
+```
+
+Then reload:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart at
+```
+
+### 7. Show logged-in user in the dashboard
+
+Set `AT_OAUTH_PORTAL_URL` to the base URL of your auth portal so the dashboard can display the logged-in user and a sign-out link:
+
+```ini
+Environment=AT_OAUTH_PORTAL_URL=https://at.example.com/auth
+```
+
+This requires `inject headers with claims` in the Caddyfile authorization policy (so caddy-security forwards user info as request headers to `at`):
+
+```caddyfile
+authorization policy mypolicy {
+    set auth url https://at.example.com/auth/
+    crypto key verify <your-random-hex-key>
+    allow roles authp/user
+    inject headers with claims
+}
+```
+
+When configured, the dashboard header shows an avatar, the user's name, and a **Sign out** link. When `AT_OAUTH_PORTAL_URL` is unset, the header is unchanged — the feature is fully opt-in.
+
+### 5. Validate and reload
+
+```bash
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+Visiting `https://at.example.com` will now redirect to Google login. Only the email address(es) listed in `match email` blocks can authenticate.
+
+> **Keep secrets out of git.** The `client_secret` and `crypto key sign-verify` values must never be committed. If you version your Caddyfile, use environment variable substitution (`{$MY_VAR}`) or a secrets manager to inject them at runtime.
+
+---
+
 ## How `at` manages Caddy routes
 
 `at` uses Caddy's admin API to add reverse proxy routes for deployed apps. The approach matters when Caddy also has a hand-written Caddyfile (dashboard site, TLS, redirects).
@@ -202,6 +387,10 @@ Then redeploy to push the corrected route to Caddy.
 4. `POST /load` — reload with the merged config
 
 This way `at` only touches its own routes and never disturbs the Caddyfile's server structure.
+
+### Surviving Caddy restarts
+
+When Caddy restarts it reloads from its Caddyfile, which means all dynamically injected app routes are lost. `at` recovers automatically: it re-syncs all running app routes to Caddy every 30 seconds. At worst, an app is unreachable for 30 seconds after a Caddy restart — no manual redeploy required.
 
 ---
 
@@ -316,7 +505,8 @@ No configuration needed.
 | `POST` | `/api/apps/scan` | Scan projects directory for new apps |
 | `GET` | `/api/deployments/{id}` | Get deployment detail and logs |
 | `GET` | `/api/status` | Server status (Caddy reachability) |
-| `GET` | `/api/config` | Server config (base domain) |
+| `GET` | `/api/config` | Server config (base domain, oauth portal URL) |
+| `GET` | `/api/whoami` | Logged-in user info from caddy-security headers (email, name); only meaningful when `AT_OAUTH_PORTAL_URL` is set |
 
 ## Project layout
 
