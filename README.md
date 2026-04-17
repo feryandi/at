@@ -91,6 +91,120 @@ Each project folder may contain an optional `at.json`:
 
 `at.json` is only read at scan time when first registering an app. After registration, settings live in the database and are editable via `PUT /api/apps/{id}`.
 
+## Production deployment (Linux, native Caddy)
+
+This is the recommended setup for a real server — Caddy runs as a native systemd service (not Docker), and `at` runs as its own service alongside it.
+
+### 1. Install Caddy
+
+```bash
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install caddy
+```
+
+### 2. Configure Caddyfile
+
+`/etc/caddy/Caddyfile` — handles your dashboard domain, and provides a catch-all HTTP→HTTPS redirect so app subdomains upgrade correctly:
+
+```caddyfile
+{
+    admin 0.0.0.0:2019
+}
+
+at.example.com {
+    reverse_proxy localhost:8080
+}
+
+# Redirect all other HTTP traffic to HTTPS.
+# at-managed app routes live on :443 — this upgrades plain HTTP requests.
+http:// {
+    redir https://{host}{uri} permanent
+}
+```
+
+> **Do not use a catch-all `:80` block** (the default Caddy template has one). It intercepts all HTTP traffic before host matching and sends everything to the dashboard.
+
+```bash
+sudo systemctl reload caddy
+```
+
+### 3. DNS — wildcard subdomain
+
+Point a wildcard A record and a bare A record at your server's IP at your DNS provider:
+
+```
+A  *.at       →  <server-ip>
+A  at         →  <server-ip>
+```
+
+This makes `genesis.at.example.com`, `api.at.example.com`, etc. all resolve to your server. Caddy matches them by `Host` header and routes to the right container.
+
+### 4. Build `at`
+
+```bash
+make build
+```
+
+### 5. systemd service
+
+Create `/etc/systemd/system/at.service`:
+
+```ini
+[Unit]
+Description=at deployment platform
+After=network.target
+
+[Service]
+User=<your-user>
+Group=<your-user>
+WorkingDirectory=/path/to/at
+ExecStart=/path/to/at/bin/at
+Restart=always
+RestartSec=5s
+Environment=AT_BASE_DOMAIN=at.example.com
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now at
+```
+
+### Important: set `AT_BASE_DOMAIN` before first scan
+
+Apps are assigned their domain **at scan time**, not at deploy time. If `AT_BASE_DOMAIN` is not set when you first scan a project, the app gets `<name>.localhost` instead of `<name>.at.example.com`. Fix it after the fact:
+
+```bash
+curl -X PUT http://localhost:8080/api/apps/<id> \
+  -H "Content-Type: application/json" \
+  -d '{"domain": "myapp.at.example.com"}'
+```
+
+Then redeploy to push the corrected route to Caddy.
+
+---
+
+## How `at` manages Caddy routes
+
+`at` uses Caddy's admin API to add reverse proxy routes for deployed apps. The approach matters when Caddy also has a hand-written Caddyfile (dashboard site, TLS, redirects).
+
+**The wrong approach** — `POST /load` replaces Caddy's **entire** config. Any Caddyfile-defined servers, TLS setup, or redirect rules are wiped on every deploy sync.
+
+**The right approach** — read-modify-write:
+
+1. `GET /config/` — fetch the full live config (preserves everything from the Caddyfile)
+2. Remove any routes tagged `@id: "at-*"` (these are the routes `at` previously added)
+3. Insert new app routes (tagged `@id: "at-<domain>"`) into the existing `:443` server
+4. `POST /load` — reload with the merged config
+
+This way `at` only touches its own routes and never disturbs the Caddyfile's server structure.
+
+---
+
 ## Local development
 
 You can run `at` entirely on your own machine without a public domain or TLS.
