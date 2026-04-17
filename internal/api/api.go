@@ -42,6 +42,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 func (h *Handler) handleDashboard(w http.ResponseWriter, r *http.Request) {
+        log.Printf("handle dashboard")
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
